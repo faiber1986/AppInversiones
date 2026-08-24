@@ -57,7 +57,7 @@ SÍ / NO / N/A con justificación. Un NO en una compuerta NO NEGOCIABLE bloquea 
 | G10 | `motor/` no importa E/S, red ni UI; no lee reloj, entorno ni aleatoriedad; `tests/test_arquitectura.py` lo verifica | X | |
 | G11 | La solución es la más aburrida que satisface los principios; la complejidad añadida está justificada en la tabla de abajo | Gobernanza | |
 
-**Contrato técnico:** los 37 ADs de
+**Contrato técnico:** los 51 ADs de
 `_bmad-output/planning-artifacts/architecture/architecture-AppInversiones-2026-08-24/ARCHITECTURE-SPINE.md`
 implementan estos principios. Un diseño que contradiga un AD exige enmendar el AD primero,
 no eludirlo.
