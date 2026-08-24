@@ -37,6 +37,7 @@ El operador carga un monto, un horizonte, un perfil fiscal y un conjunto de veh�
 3. **Given** un vehículo cuyo retorno esperado se declara neto de TER, **When** corre la evolución anual, **Then** el sistema **no** resta TER por segunda vez.
 4. **Given** un CDT o un TES, **When** corre la evolución anual, **Then** el sistema causa impuesto anual sobre rendimientos financieros aunque el vehículo no distribuya dividendos.
 5. **Given** cualquier corrida, **When** se emite el resultado, **Then** ningún parámetro tributario aparece sin su estado de procedencia.
+6. **Given** un vehículo distributivo, **When** se corre en modo `acumular_caja`, **Then** el sistema **no** aplica spread cambiario al dividendo hasta la salida; **When** se corre en modo `repatriar`, **Then** lo aplica cada año; **When** se corre en modo `reinvertir`, **Then** lo aplica en cada reinversión.
 
 ---
 
@@ -87,6 +88,7 @@ La normativa está en movimiento y el tratamiento del reajuste fiscal admite tre
 3. **Given** un perfil de cliente con activo fijo en falso, **When** se ejecuta la comparación, **Then** los modos `art_70` y `art_73` se emiten como no disponibles con su razón, y solo `sin_reajuste` produce cifras.
 4. **Given** una ruta de cálculo que intente componer el ajuste del art. 70 con el del art. 73 sobre el mismo activo para la misma enajenación, **When** se ejecuta, **Then** el sistema levanta una excepción.
 5. **Given** un vehículo que gana en una celda y pierde en otra, **When** se genera el memorando, **Then** la divergencia aparece en la primera página.
+6. **Given** una celda de referencia designada por el operador, **When** se presenta el resultado, **Then** el cliente ve la cascada de esa celda y las otras ocho como banda de sensibilidad, y las nueve siguen disponibles.
 
 ---
 
@@ -148,7 +150,9 @@ Adoptar el reajuste del art. 73 obliga a declarar el costo ajustado como valor p
 - **Retorno negativo en moneda de origen con devaluación positiva.** Debe producir base gravable positiva y atribución del 100% del impuesto a devaluación.
 - **Horizonte exactamente igual al umbral de tenencia.** La clasificación entre ganancia ocasional y cédula general en el borde debe ser determinística y estar documentada en un test.
 - **Vehículo cuya convención de TER no está declarada.** Falla; no asume ninguna de las dos.
-- **Cantidad fraccionaria de participaciones por reinversión de dividendos.** Debe tener regla de precisión declarada.
+- **Cantidad fraccionaria de participaciones por reinversión de dividendos.** Debe tener regla de precisión declarada, y el residuo del redondeo debe tener destino explícito.
+- **Modo `repatriar` con dividendo pequeño.** El spread cambiario anual puede superar el dividendo neto. El sistema debe producir el resultado real (negativo) y no truncarlo a cero.
+- **Cambio de la celda de referencia.** Designar otra celda no debe alterar ninguna cifra calculada, solo qué se muestra primero.
 - **Todos los vehículos con elegibilidad `sin_clasificar`.** La comparación devuelve las nueve celdas con seis marcadas no disponibles y su razón; no falla la corrida completa.
 
 ---
@@ -236,10 +240,26 @@ Adoptar el reajuste del art. 73 obliga a declarar el costo ajustado como valor p
 - **FR-050**: El sistema MUST NO conectarse con brókeres ni ejecutar órdenes. Nunca.
 - **FR-051**: El sistema MUST NO incluir ninguna funcionalidad de recomendación automática.
 
-### Requisitos con clarificación pendiente
+### Destino del dividendo distribuido
 
-- **FR-052**: Cuando un vehículo distributivo paga un dividendo, el efectivo neto MUST tratarse según [NEEDS CLARIFICATION: ¿se reinvierte en el mismo vehículo creando un lote nuevo, se acumula en caja sin rendimiento, o se repatría a COP cada año? Cambia la TIR y define la comparación distributivo vs. acumulativo, que es el eje del catálogo. Los cambios estructurales aportados sugieren reinversión —"cada reinversión de dividendo crea un lote nuevo", y la fragmentación se describe como costo del vehículo distributivo— pero no lo afirman].
-- **FR-053**: La comparación de hasta 15 vehículos × 9 celdas = 135 conjuntos de resultados MUST presentarse de forma que [NEEDS CLARIFICATION: ¿cómo se organiza esa matriz para que un cliente no técnico entienda el desglose en 30 segundos, según SC-003? Opciones plausibles: una vista agregada con waterfall por vehículo bajo demanda; una celda de referencia elegida por el operador con las otras ocho como sensibilidad; o una matriz de calor con detalle al seleccionar].
+*Resuelto por el operador el 2026-08-24.*
+
+- **FR-052**: El destino del efectivo del dividendo neto MUST ser un parámetro de la corrida con tres valores: `reinvertir` (por defecto), `acumular_caja`, `repatriar`. Los tres MUST poder correrse para comparar. El resultado MUST declarar cuál se usó.
+- **FR-053**: En modo `reinvertir`, el dividendo neto MUST adquirir participaciones del mismo vehículo, creando un lote nuevo con su propio reloj de tenencia y su propia TRM de reconocimiento.
+- **FR-054**: El spread cambiario del dividendo MUST depender del modo, porque cada modo mueve el efectivo de forma distinta:
+  - `reinvertir`: se aplica spread en la reinversión, porque un lote nuevo implica una conversión nueva.
+  - `acumular_caja`: **no** se aplica spread hasta la salida; el efectivo permanece en la moneda de origen.
+  - `repatriar`: se aplica spread **cada año**, porque el efectivo vuelve a COP anualmente.
+- **FR-055**: El memorando MUST declarar siempre qué modo de destino del dividendo se usó, y MUST mostrar el costo de fragmentación de lotes que resulta de ese modo (FR-017).
+
+### Presentación de la matriz de resultados
+
+*Resuelto por el operador el 2026-08-24.*
+
+- **FR-056**: El operador MUST poder designar una **celda de referencia** (un escenario normativo + un modo de reajuste) como caso base de la presentación.
+- **FR-057**: La presentación al cliente MUST mostrar el gráfico de cascada de la celda de referencia, y MUST mostrar las otras ocho celdas como **banda de sensibilidad** en torno a ella.
+- **FR-058**: La divergencia entre celdas MUST destacarse cuando **invierte el ordenamiento** entre vehículos; una diferencia de magnitud que no cambia el orden no MUST competir por la atención del cliente.
+- **FR-059**: Designar una celda de referencia MUST NO omitir ninguna de las nueve. La celda de referencia es un recurso de presentación, no un filtro: las nueve siguen calculándose y estando disponibles (FR-028).
 
 ---
 
@@ -287,3 +307,5 @@ Adoptar el reajuste del art. 73 obliga a declarar el costo ajustado como valor p
 - Existe al menos una fuente gratuita de datos de mercado y de TRM adecuada; su elección concreta y su licencia se resuelven en la fase de planeación.
 - El sistema modela un vehículo por corrida de comparación contra un mismo perfil de cliente; no modela un portafolio combinado ni su interacción fiscal.
 - Los supuestos de mercado (retorno total esperado, dividend yield, devaluación anual esperada del COP) los aporta el operador; el sistema no los estima ni los proyecta.
+- El modo por defecto del destino del dividendo es `reinvertir`, resuelto por el operador el 2026-08-24. No es un supuesto del especificador.
+- La celda de referencia por defecto no está fijada: la designa el operador por corrida.

@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] **No quedan marcadores [NEEDS CLARIFICATION]** — quedan 2 (FR-052, FR-053), ambos deliberados
+- [x] **No quedan marcadores [NEEDS CLARIFICATION]** — los 2 resueltos por el operador el 2026-08-24
 - [x] Los requisitos son testeables y no ambiguos
 - [x] Los criterios de éxito son medibles
 - [x] Los criterios de éxito son agnósticos de tecnología
@@ -39,11 +39,9 @@
 
 3. *Prohibiciones de la capa narrativa redactadas como instrucción.* Se reformularon como requisitos verificables sobre la prosa producida (FR-040, FR-041, FR-043), no sobre lo que se le pide al generador. Un requisito que solo se puede cumplir "pidiéndolo" no es testeable.
 
-**Marcadores [NEEDS CLARIFICATION] retenidos deliberadamente (2 de 3 permitidos):**
+**Iteración 2 — los dos marcadores resueltos por el operador el 2026-08-24:**
 
-- **FR-052 — destino del efectivo del dividendo distribuido.** No se resuelve con un valor por defecto razonable: las tres opciones (reinvertir, acumular en caja, repatriar) producen TIR distintas y **definen la comparación distributivo vs. acumulativo, que es el eje del catálogo**. Los cambios estructurales del operador sugieren reinversión pero no lo afirman. Asumirlo sería decidir el resultado central del producto por omisión.
-- **FR-053 — presentación de 135 conjuntos de resultados.** Impacta directamente SC-003 (30 segundos, cliente no técnico). Hay al menos tres organizaciones plausibles con implicaciones muy distintas para el producto.
-
-Ambos van a `/speckit-clarify`. **No bloquean** la planeación técnica: la arquitectura acomoda cualquiera de las respuestas sin cambio estructural (AD-29 para FR-052, AD-24 para FR-053).
+- **Destino del efectivo del dividendo → `reinvertir` por defecto, pero parámetro de corrida** (FR-052, FR-053). Los tres modos corren para comparar. El operador añadió una precisión que yo no había planteado y que resultó ser el punto fino del asunto: **el spread cambiario depende del modo** (FR-054). En `reinvertir` aplica en cada reinversión, porque lote nuevo es conversión nueva; en `acumular_caja` no aplica hasta la salida; en `repatriar` aplica cada año. Sin esa distinción los tres modos habrían compartido un tratamiento cambiario incorrecto, y el spread es entre 30 y 100 puntos básicos — la magnitud que el brief §1 declara ser el producto.
+- **Presentación → celda de referencia + banda de sensibilidad** (FR-056 a FR-059). Se añadió FR-059 para blindar el requisito de honestidad: designar una celda de referencia es un recurso de presentación, **no un filtro**. Las nueve se siguen calculando y quedan disponibles. Sin ese requisito, la celda de referencia habría sido una puerta trasera para volver a presentar un solo escenario, que es justo lo que el brief §6 prohíbe.
 
 **Tercer punto NO marcado como clarificación**, por decisión explícita: los valores numéricos de escenarios y series de reajuste. No es una ambigüedad de especificación sino un insumo que el operador carga validado con su tributarista. Está registrado en Assumptions y cubierto por FR-031 y FR-033, que hacen fallar la corrida mientras falten.
