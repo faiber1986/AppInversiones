@@ -2,7 +2,7 @@
 
 > Entregable de la **Fase 0** del brief (§0.2). Responde las cinco preguntas que pediste decidir explícitamente, con sus trade-offs.
 >
-> El contrato técnico ejecutable vive en `_bmad-output/planning-artifacts/architecture/architecture-AppInversiones-2026-08-24/ARCHITECTURE-SPINE.md` (28 decisiones arquitectónicas). Este documento es el porqué; el spine es el qué.
+> El contrato técnico ejecutable vive en `_bmad-output/planning-artifacts/architecture/architecture-AppInversiones-2026-08-24/ARCHITECTURE-SPINE.md` (37 decisiones arquitectónicas). Este documento es el porqué; el spine es el qué.
 >
 > Fecha: 2026-08-24 · Producido con BMAD-METHOD v6.11.0, workflow `bmad-architecture` en modo headless, con Reviewer Gate completo.
 
@@ -249,3 +249,53 @@ El modo headless corre el riesgo de decidir en silencio. Estos son todos los sup
 ## Lo que este documento no decide
 
 Nada del qué/porqué funcional. Ni el flujo de la interfaz, ni la forma del memorando, ni cómo se presentan los 45 resultados, ni el proveedor de datos. Eso es Fase 1, con GitHub Spec Kit, alimentado por estas decisiones.
+
+---
+
+# Addendum — 2026-08-24, tras resolución parcial del bloqueante 2
+
+El operador entregó el marco de reajuste fiscal. No fue solo la respuesta a una pregunta abierta: introdujo cuatro cambios estructurales al modelo de dominio. El spine pasó de 28 a **37 decisiones arquitectónicas** (`AD-29` a `AD-37`); ningún AD previo se renumeró.
+
+## Advertencia de procedencia — condiciona todo lo demás
+
+El material tributario recibido **no está firmado por un profesional** y tiene una **contradicción interna entre dos de sus documentos**. Instrucción del operador: tratar todo parámetro derivado de él como supuesto no verificado, marcado como tal en configuración, pendiente de concepto profesional, y **no presentarlo como hecho en ningún output**.
+
+Esto no quedó como nota al pie. Quedó como invariante ejecutable (`AD-35`): cada parámetro tributario declara `procedencia: {fuente, fecha_vigencia, estado}`, su ausencia levanta `ProcedenciaNoDeclarada`, el `Renderer` rechaza payloads sin ella, y los guards del LLM fallan el render si la prosa presenta como establecido un parámetro no verificado.
+
+## Cambio 1 — El lote es la unidad fiscal, no la posición (`AD-29`, `AD-30`)
+
+Cada adquisición es un lote inmutable con su propio reloj de tenencia y su TRM de reconocimiento **congelada** (art. 269 ET: la base en COP se fija al reconocimiento inicial y no se reexpresa anualmente). Toda reinversión de dividendo crea un lote **nuevo**.
+
+**Por qué es estructural y no un refinamiento:** al vender, la posición se fragmenta entre lotes que superan el umbral de ganancia ocasional y lotes que no. Un cálculo sobre la posición agregada los trata a todos igual y **subestima sistemáticamente el impuesto del vehículo distributivo** — justo la comparación que el producto existe para hacer bien. `AD-37` lo convierte en métrica propia: qué porcentaje de la ganancia quedó gravada a cédula general por fragmentación.
+
+## Cambio 2 — Modos de reajuste excluyentes (`AD-31`)
+
+Art. 70 y art. 73 son alternativos y excluyentes sobre el mismo activo para la misma enajenación. Se trata con el mismo rigor que la mezcla de monedas: componer ambos ajustes levanta `ReajusteDoble`, igual que sumar COP con USD levanta `MonedaIncompatible`.
+
+Tres modos corren siempre como corridas separadas: `sin_reajuste`, `art_70` (porcentaje por **año gravable**), `art_73` (factor por **año de adquisición**). Ambas series quedan como `TODO` en `config/reajuste/`, una entrada por año, con fuente normativa y fecha de vigencia obligatorias. **Ningún porcentaje ni factor fue inventado.**
+
+`AD-36` recoge la consecuencia operativa que el operador señaló: adoptar art. 73 obliga a declarar el costo ajustado como valor patrimonial en **cada** declaración anual. Es obligación recurrente, así que el valor patrimonial por lote y por año es una salida de primera clase, no un subproducto de la liquidación de venta.
+
+## Cambio 3 — Campos nuevos de catálogo (`AD-32`)
+
+`forma_juridica_emisor`, `nombre_legal_completo`, `isin`, `fuente_documental` y `elegibilidad_art_73`. Regla dura: `sin_clasificar` **bloquea** el modo art_73 para ese vehículo con `ElegibilidadNoClasificada`. Nunca hay degradación silenciosa a art_70.
+
+## Cambio 4 — Activo fijo (`AD-33`)
+
+Parámetro del **perfil del cliente**, no del vehículo — es propiedad de quién tiene el activo, no de qué activo es. Si es `false`, solo corre `sin_reajuste`. El motor nunca lo infiere.
+
+## Secuencia canónica del costo fiscal (`AD-34`)
+
+Orden obligatorio, una sola función, un asiento por paso: costo en moneda origen + comisiones → conversión a COP con la TRM de reconocimiento del lote → reajuste sobre esa base COP → base gravable al vender → clasificación por tenencia **del lote**.
+
+Fijar el orden importa porque reajustar en moneda de origen y luego convertir da un número distinto que convertir y luego reajustar, y ambas lecturas parecen razonables por separado.
+
+## Consecuencia que hay que mirar de frente
+
+`AD-24` ya exigía todo output en los tres escenarios normativos. Los tres modos de reajuste son **ortogonales** a esos escenarios: son **9 celdas por vehículo**, y con 15 vehículos, **135 conjuntos de resultados** por corrida.
+
+El criterio de aceptación §10.3 —que un cliente no técnico entienda el desglose en 30 segundos— se vuelve sustancialmente más difícil. `AD-24` fija que las nueve celdas **existan** y que las no disponibles (`AD-32`, `AD-33`) se emitan con su razón en vez de omitirse en silencio. **Cómo se presentan es diseño de producto y le corresponde a la Fase 1.**
+
+## Qué sigue abierto
+
+El **bloqueante 1 sigue sin resolver**: qué pasa con el efectivo del dividendo distribuido. El cambio 1 dice que toda reinversión crea un lote nuevo y que la fragmentación es un costo del vehículo distributivo, lo que sugiere reinversión — pero no lo afirma, y no lo doy por supuesto. Va a `/speckit.clarify`.

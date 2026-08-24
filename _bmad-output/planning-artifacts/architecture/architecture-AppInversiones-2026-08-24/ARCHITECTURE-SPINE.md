@@ -25,11 +25,11 @@ El sistema tiene un centro determinístico y un anillo de adaptadores. El centro
 
 | Capa | Paquete | Contenido |
 |---|---|---|
-| Núcleo | `motor/dominio/` | `Money`, `Concepto`, `Asiento`, `LibroDeAsientos`, `CurvaDeCambio`, `Vehiculo`, `Escenario` |
-| Núcleo | `motor/friccion/` | Evolución año por año de una posición |
-| Núcleo | `motor/fiscal/` | **Único** dueño del cálculo tributario: retención en origen e impuesto colombiano |
-| Núcleo | `motor/escenarios/` | Corre una posición en A, B y C |
-| Núcleo | `motor/comparacion/` | Barrido de N vehículos × 3 escenarios, deltas y ordenamientos |
+| Núcleo | `motor/dominio/` | `Money`, `Concepto`, `Asiento`, `LibroDeAsientos`, `CurvaDeCambio`, `Lote`, `Posicion`, `Vehiculo`, `Escenario`, `ModoReajuste`, `PerfilCliente` |
+| Núcleo | `motor/friccion/` | Evolución año por año de una posición como secuencia de lotes |
+| Núcleo | `motor/fiscal/` | **Único** dueño del cálculo tributario: retención en origen, costo fiscal por lote, reajuste e impuesto colombiano |
+| Núcleo | `motor/escenarios/` | Corre una posición en 3 escenarios × 3 modos de reajuste |
+| Núcleo | `motor/comparacion/` | Barrido de N vehículos × 3 escenarios × 3 modos, deltas y ordenamientos |
 | Núcleo | `motor/cumplimiento/` | Alertas §7 — levanta banderas, no calcula impuestos |
 | Puertos | `motor/puertos/` | `RepositorioConfig`, `RepositorioCatalogo`, `FuenteMercado`, `RedactorNarrativo` |
 | Adaptadores | `adaptadores/config/` | Carga YAML fechado por vigencia |
@@ -194,7 +194,7 @@ Ningún adaptador es dependencia de `motor/`: los adaptadores **implementan** lo
 
 - **Binds:** `motor/dominio/`, todo módulo que escriba asientos
 - **Prevents:** que la retención en origen —asignada a la vez a `motor/fiscal/` por la tabla de capas y a `motor/friccion/` por el bucle anual del brief §5.3— se escriba dos veces con nombres distintos y signos opuestos, produciendo doble conteo, dos barras en el waterfall para una sola fricción y, si los signos se cancelan, un total limpio y equivocado que ningún test unitario de módulo detecta
-- **Rule:** `Concepto` es un `StrEnum` cerrado. Cada miembro declara su **módulo dueño**, su **signo** (aporte o detracción) y su **grupo de waterfall**. `LibroDeAsientos.append` rechaza un asiento cuyo concepto no pertenezca al módulo que escribe, y rechaza un signo contrario al declarado. **`motor/fiscal/` es el único dueño de todo concepto tributario, incluida la retención en origen**; `motor/friccion/` la solicita, no la calcula ni la escribe.
+- **Rule:** `Concepto` es un `StrEnum` cerrado. Cada miembro declara su **módulo dueño**, su **signo** (aporte o detracción) y su **grupo de waterfall**. `LibroDeAsientos.append` rechaza un asiento cuyo concepto no pertenezca al módulo que escribe, y rechaza un signo contrario al declarado. **`motor/fiscal/` es el único dueño de todo concepto tributario**, incluidas la retención en origen, el ajuste por reajuste fiscal (AD-31) y el sobrecosto por fragmentación de lotes (AD-37); `motor/friccion/` los solicita, no los calcula ni los escribe.
 
 ### AD-21 — El libro tiene clave de corrida y el dominio es inmutable
 
@@ -206,7 +206,7 @@ Ningún adaptador es dependencia de `motor/`: los adaptadores **implementan** lo
 
 - **Binds:** `motor/friccion/`
 - **Prevents:** que dos implementaciones apliquen apreciación, dividendo, retención, TER y custodia en órdenes distintos — sobre una base que cambia en cada paso, el orden altera el resultado y ninguna cifra sería reproducible
-- **Rule:** el paso anual ejecuta exactamente la secuencia del brief §5.3, en este orden: apreciación de capital → dividendo bruto → retención en origen → destino del dividendo neto → TER (solo si AD-6 lo indica) → custodia. La secuencia vive en una única función y cada paso escribe su propio asiento. No hay atajo de fórmula cerrada.
+- **Rule:** el paso anual ejecuta exactamente la secuencia del brief §5.3, en este orden: apreciación de capital → dividendo bruto → retención en origen → destino del dividendo neto → TER (solo si AD-6 lo indica) → custodia. La secuencia vive en una única función y cada paso escribe su propio asiento. No hay atajo de fórmula cerrada. Cuando el destino del dividendo neto es la reinversión, el paso **crea un lote nuevo** (AD-29); nunca incrementa la cantidad de un lote existente.
 
 ### AD-23 — Los guards de cumplimiento cubren las cuatro prohibiciones, no solo las cifras
 
@@ -214,11 +214,11 @@ Ningún adaptador es dependencia de `motor/`: los adaptadores **implementan** lo
 - **Prevents:** que "la herramienta no recomienda" —que el brief §2.4 califica de restricción **regulatoria**, no estética— quede sostenida solo por el prompt del sistema, que un modelo puede ignorar. El guard numérico de AD-9 dejaría pasar intacta la frase "recomiendo el ETF irlandés", porque no contiene ninguna cifra inventada
 - **Rule:** además del guard numérico, el pipeline aplica guards determinísticos que fallan el render ante: lenguaje recomendatorio, estimación de retornos futuros no presente en el JSON, e interpretación normativa fuera de los textos configurados (AD-27). Y verifica **presencia estructural**: un memorando sin sección de abogado del diablo no se emite, porque el brief §8 la declara obligatoria en todo memorando. Cada guard tiene test propio con casos positivos y negativos.
 
-### AD-24 — Todo output es tri-escenario
+### AD-24 — Todo output es tri-escenario y tri-modo
 
-- **Binds:** `motor/comparacion/`, `adaptadores/render/`, `app/`
-- **Prevents:** que exista una pantalla, una exportación o un `--escenario A` que presente un resultado en un solo escenario, contra el "requisito de honestidad" del brief §6 y el criterio de aceptación §10.2
-- **Rule:** las funciones públicas de `motor/comparacion/` devuelven siempre un resultado indexado por los tres escenarios; no existe una firma que devuelva uno solo. El `Renderer` (AD-10) rechaza un payload que no traiga los tres. Si un vehículo gana en A y pierde en B, la divergencia se emite en la primera página del memorando.
+- **Binds:** `motor/comparacion/`, `motor/escenarios/`, `adaptadores/render/`, `app/`
+- **Prevents:** que exista una pantalla, una exportación o un `--escenario A` que presente un resultado en un solo escenario normativo o bajo un solo modo de reajuste, contra el "requisito de honestidad" del brief §6 y el criterio de aceptación §10.2
+- **Rule:** las funciones públicas de `motor/comparacion/` devuelven siempre un resultado indexado por **escenario normativo × modo de reajuste** (3 × 3); no existe una firma que devuelva una sola celda. El `Renderer` (AD-10) rechaza un payload incompleto. Las celdas que un vehículo o perfil no admite (AD-32, AD-33) se emiten como no disponibles con su razón, **nunca se omiten en silencio ni se sustituyen por otro modo**. Si un vehículo gana en una celda y pierde en otra, la divergencia se emite en la primera página del memorando.
 
 ### AD-25 — El gate de calidad es un mecanismo concreto, no una intención
 
@@ -242,7 +242,61 @@ Ningún adaptador es dependencia de `motor/`: los adaptadores **implementan** lo
 
 - **Binds:** `motor/fiscal/`, `motor/comparacion/`, `adaptadores/render/`
 - **Prevents:** que la cifra del criterio de aceptación §10.4 se calcule por dos métodos legítimos pero distintos —contrafactual (¿cuánto impuesto habría con TRM constante?) frente a proporcional (repartir la base entre componente cambiario y componente de rentabilidad)— y que dos vistas del mismo memorando muestren porciones distintas
-- **Rule:** el método es contrafactual: se recorre la misma secuencia con `CurvaDeCambio` congelada a la tasa de entrada, y la porción atribuible a devaluación es la diferencia entre ambos impuestos. Vive en una única función de `motor/fiscal/`, escribe su propio asiento y nadie más la recalcula. El memorando declara el método usado.
+- **Rule:** el método es contrafactual: se recorre la misma secuencia **lote por lote**, sustituyendo la `trm_reconocimiento` de cada lote por la tasa de entrada de la posición, y la porción atribuible a devaluación es la diferencia entre ambos impuestos. Se calcula dentro de un modo de reajuste fijo (AD-31), nunca cruzando modos. Vive en una única función de `motor/fiscal/`, escribe su propio asiento y nadie más la recalcula. El memorando declara el método y el modo usados.
+
+### AD-29 — El lote es la unidad fiscal, no la posición
+
+- **Binds:** `motor/dominio/`, `motor/friccion/`, `motor/fiscal/`
+- **Prevents:** que el impuesto se calcule sobre una posición agregada. Al agregar se borra la fragmentación por tenencia: al vender, unos lotes superan el umbral de ganancia ocasional y otros no, y un cálculo agregado los trata a todos igual — subestimando sistemáticamente el impuesto del vehículo distributivo, que es justo la comparación que el producto existe para hacer bien
+- **Rule:** `Lote` es inmutable y lleva `fecha_adquisicion`, `cantidad`, `costo_origen: Money`, `trm_reconocimiento: Decimal`, `anio_gravable_reconocimiento: int`. Una `Posicion` es una secuencia inmutable de lotes. **Toda reinversión de dividendo crea un lote nuevo**; ninguna operación incrementa la cantidad de un lote existente. Cada lote lleva su propio reloj de tenencia. El impuesto de realización se calcula **lote por lote y se suma**; ninguna ruta lo calcula sobre el agregado. El método de asignación en venta es parámetro de la corrida: `fifo` por defecto, `identificacion_especifica` como opción.
+
+### AD-30 — La TRM de reconocimiento se congela por lote
+
+- **Binds:** `motor/dominio/`, `motor/fiscal/`, `CurvaDeCambio`
+- **Prevents:** reexpresar anualmente la base de costo en COP, que el art. 269 ET no permite; y que dos módulos apliquen TRM distintas al mismo lote
+- **Rule:** `Lote.trm_reconocimiento` se fija en el reconocimiento inicial y es inmutable. `CurvaDeCambio.tasa_valoracion(anio)` **no se usa para recomputar la base de costo de un lote existente** — su uso en esa ruta es un defecto. Todo ajuste posterior al costo ocurre en COP sobre esa base, por la vía del modo de reajuste (AD-31), nunca por vía cambiaria.
+
+### AD-31 — Los modos de reajuste son excluyentes entre sí
+
+- **Binds:** `motor/fiscal/`, `adaptadores/config/`
+- **Prevents:** sumar el ajuste del art. 70 y el del art. 73 sobre el mismo activo para la misma enajenación. Son alternativos y excluyentes; componerlos produce un costo fiscal inflado y una base gravable indefendible
+- **Rule:** `ModoReajuste` es un `StrEnum` cerrado: `sin_reajuste | art_70 | art_73`. El costo fiscal ajustado se calcula por **exactamente un modo**. Cualquier ruta que intente componer dos ajustes levanta `ReajusteDoble`, con el mismo rigor con que `Money` levanta `MonedaIncompatible` (AD-4). Los tres modos corren siempre, como corridas separadas e independientes, nunca combinadas. Cada modo consume su propia serie temporal de parámetros: art. 70 un porcentaje por **año gravable**, art. 73 un factor por **año de adquisición**. Ambas series se cargan por AD-7 y AD-35; ningún valor se infiere ni se interpola.
+
+### AD-32 — Elegibilidad art. 73 declarada; sin clasificar bloquea, no degrada
+
+- **Binds:** catálogo, `motor/fiscal/`
+- **Prevents:** que un vehículo cuya forma jurídica nadie clasificó caiga en silencio a `art_70` y produzca una cifra que el operador no puede defender ante el contador del cliente
+- **Rule:** cada vehículo declara `forma_juridica_emisor` (`icav | plc | unit_trust | fondo_contractual | partnership | sociedad | otro`), `nombre_legal_completo`, `isin`, `fuente_documental` (referencia al prospecto o KID que sustenta la clasificación) y `elegibilidad_art_73` (`defendible | no_aplica | sin_clasificar`). Todos obligatorios, sin valor por defecto. Si `elegibilidad_art_73` es `sin_clasificar`, el modo `art_73` levanta `ElegibilidadNoClasificada` para ese vehículo. **Nunca hay degradación silenciosa a otro modo.** Si es `no_aplica`, la celda se emite como no disponible con su razón (AD-24).
+
+### AD-33 — El reajuste exige activo fijo, y es del perfil, no del vehículo
+
+- **Binds:** `motor/dominio/`, `motor/fiscal/`
+- **Prevents:** aplicar reajuste a un activo que para ese contribuyente es inventario o parte de su actividad habitual de compraventa, donde no procede. Es una propiedad de quién tiene el activo, no de qué activo es — modelarla en el catálogo sería un error de ubicación
+- **Rule:** `PerfilCliente` declara `activo_fijo: bool`, obligatorio y sin valor por defecto. Si es `false`, los modos `art_70` y `art_73` no están disponibles y solo corre `sin_reajuste`. **El motor nunca infiere este flag** a partir del vehículo, del horizonte ni de la frecuencia de operación.
+
+### AD-34 — La secuencia del costo fiscal es canónica
+
+- **Binds:** `motor/fiscal/`
+- **Prevents:** que dos implementaciones apliquen conversión y reajuste en órdenes distintos. Reajustar en moneda de origen y luego convertir da un número distinto que convertir y luego reajustar, y ambas parecen razonables leídas por separado
+- **Rule:** exactamente este orden, en una única función, con un asiento por paso: **(1)** costo de adquisición en moneda origen + comisiones de compra; **(2)** conversión a COP con `Lote.trm_reconocimiento` (AD-30, art. 269); **(3)** aplicación del modo de reajuste sobre esa base en COP (AD-31); **(4)** al vender, precio de venta convertido a COP − costo fiscal ajustado = base gravable; **(5)** clasificación por tenencia **del lote** (AD-29): ganancia ocasional o cédula general.
+
+### AD-35 — Todo parámetro tributario declara su procedencia, y el output la propaga
+
+- **Binds:** `adaptadores/config/`, `motor/fiscal/`, `motor/cumplimiento/`, `adaptadores/render/`, `adaptadores/llm/`
+- **Prevents:** que un parámetro derivado de material no firmado por un profesional —y con una contradicción interna conocida entre dos de sus documentos— se presente al cliente como hecho establecido. Un parámetro sin procedencia visible es indistinguible de uno validado, y esa indistinguibilidad es el riesgo
+- **Rule:** cada parámetro tributario lleva `procedencia: {fuente, fecha_vigencia, estado}` donde `estado` es `verificado_profesional | supuesto_no_verificado`. Campo obligatorio; su ausencia levanta `ProcedenciaNoDeclarada`. Ningún resultado que consuma un parámetro `supuesto_no_verificado` se emite sin la marca correspondiente propagada hasta el artefacto final. El `Renderer` (AD-10) rechaza un payload cuyos parámetros no declaren procedencia. Los guards de AD-23 fallan el render si la prosa presenta como establecido un parámetro no verificado.
+
+### AD-36 — El valor patrimonial anual es una salida de primera clase
+
+- **Binds:** `motor/fiscal/`, `motor/comparacion/`, `adaptadores/render/`
+- **Prevents:** tratar el art. 73 como un cálculo puntual de la venta. Adoptarlo obliga a declarar el costo ajustado como valor patrimonial en **cada** declaración anual: es una obligación recurrente, y un motor que solo sabe liquidar la venta deja al operador sin la cifra que necesita todos los años
+- **Rule:** el motor emite, **por lote y por año gravable**, el valor patrimonial correspondiente al modo de reajuste elegido. Es una capacidad de salida declarada, no un subproducto derivable del cálculo de venta.
+
+### AD-37 — La fragmentación por lotes se reporta como métrica propia
+
+- **Binds:** `motor/fiscal/`, `motor/comparacion/`, `adaptadores/render/`
+- **Prevents:** que el sobrecosto de fragmentación quede sumido dentro del total de impuesto, donde es invisible. Es un costo específico del vehículo distributivo —cada reinversión reinicia un reloj de tenencia— que hoy nadie mide, y hacerlo visible es parte del producto
+- **Rule:** toda liquidación reporta qué **porcentaje de la ganancia quedó gravada a tarifa de cédula general por fragmentación de lotes**, es decir por lotes que no alcanzaron el umbral de tenencia. Se deriva del libro (AD-8) con concepto propio del vocabulario cerrado (AD-20) y se emite junto al desglose de fricción, no dentro de él.
 
 ## Consistency Conventions
 
@@ -253,8 +307,9 @@ Ningún adaptador es dependencia de `motor/`: los adaptadores **implementan** lo
 | Ids | Vehículo por ISIN cuando existe, si no `mercado:ticker` en mayúsculas (p. ej. `BVC:ECOPETROL`). Escenario por letra: `A`, `B`, `C`. Snapshot de mercado por hash de contenido. Corrida por UUID generado en `app/` e inyectado, nunca dentro del núcleo |
 | Fechas | ISO-8601 (`2026-08-24`). Toda config lleva `vigencia_desde`; el año fiscal es un entero explícito, nunca derivado de `today()` dentro del núcleo |
 | Dinero y tasas | `Money(Decimal, Moneda)` (AD-4). Tasas y porcentajes como `Decimal` en fracción (`0.30`), nunca en puntos porcentuales. Puntos básicos solo al presentar |
-| Errores | El núcleo levanta excepciones tipadas del dominio (`ParametroTributarioFaltante`, `VigenciaNoCubierta`, `MonedaIncompatible`, `ConceptoAjeno`, `ClaveDeLibroAjena`, `ConvencionTerNoDeclarada`). El núcleo nunca registra logs ni imprime: devuelve o levanta |
-| Configuración | Solo YAML, parseado con `pyyaml` y validado con modelos `pydantic` en el borde. Dentro del núcleo circulan objetos validados, nunca `dict` crudos |
+| Errores | El núcleo levanta excepciones tipadas del dominio (`ParametroTributarioFaltante`, `VigenciaNoCubierta`, `MonedaIncompatible`, `ReajusteDoble`, `ElegibilidadNoClasificada`, `ProcedenciaNoDeclarada`, `ConceptoAjeno`, `ClaveDeLibroAjena`, `ConvencionTerNoDeclarada`). El núcleo nunca registra logs ni imprime: devuelve o levanta |
+| Configuración | Solo YAML, parseado con `pyyaml` y validado con modelos `pydantic` en el borde. Dentro del núcleo circulan objetos validados, nunca `dict` crudos. Toda entrada tributaria lleva `procedencia` (AD-35); las series de reajuste llevan una entrada por año, sin interpolar los faltantes |
+| Series temporales normativas | Una entrada por año, explícita. Art. 70 se indexa por **año gravable**; art. 73 por **año de adquisición**. Un año ausente levanta `VigenciaNoCubierta`; nunca se interpola, extrapola ni hereda del año vecino |
 | Determinismo | El núcleo no lee reloj, ni entorno, ni aleatoriedad. Fecha, semilla y `corrida_id` entran como parámetros. Dos corridas con los mismos inputs producen bytes idénticos |
 | Tests | Los casos de `motor/fiscal/` y `motor/friccion/` se calculan a mano y se documentan con su aritmética en el propio test. Un caso derivado de correr el código no cuenta como caso conocido |
 | Secretos | La API key de Anthropic se lee del entorno en `app/`, nunca en el núcleo, nunca en un archivo versionado |
@@ -311,25 +366,29 @@ En operación normal solo salen dos flechas de la máquina, ambas tras un puerto
 ```text
 AppInversiones/
   motor/                  # NÚCLEO PURO — sin E/S, sin red, sin UI (AD-1)
-    dominio/              # Money, Concepto, Asiento, LibroDeAsientos, CurvaDeCambio
-    friccion/             # secuencia anual canónica (AD-22)
-    fiscal/               # único dueño del cálculo tributario (AD-20, AD-28)
-    escenarios/           # una posición en A, B y C
-    comparacion/          # N vehículos × 3 escenarios (AD-24, AD-26)
+    dominio/              # Money, Concepto, Asiento, Libro, CurvaDeCambio, Lote, Posicion
+    friccion/             # secuencia anual canónica; reinvertir crea lote (AD-22, AD-29)
+    fiscal/               # costo fiscal por lote, reajuste, impuesto (AD-29..AD-37)
+    escenarios/           # una posición en 3 escenarios × 3 modos
+    comparacion/          # N vehículos × 3 × 3 (AD-24, AD-26)
     cumplimiento/         # alertas §7 — emite ids, no textos (AD-27)
     puertos/              # Protocol: RepositorioConfig, FuenteMercado, RedactorNarrativo
   adaptadores/
-    config/               # YAML fechado, falla ruidoso ante TODO (AD-7)
+    config/               # YAML fechado, falla ruidoso ante TODO (AD-7, AD-35)
     mercado/              # httpx2 + snapshots Parquet inmutables (AD-11, AD-16)
     llm/                  # cliente Anthropic + guards (AD-9, AD-23)
     render/               # waterfall, HTML, PDF, disclaimers (AD-10, AD-12)
   app/                    # Streamlit + CLI — compone, no calcula (AD-14)
   config/
     tributario/           # escenario-a.yaml, escenario-b.yaml, escenario-c.yaml
+    reajuste/
+      art-70.yaml         # porcentaje por AÑO GRAVABLE — TODO, con fuente (AD-31)
+      art-73.yaml         # factor por AÑO DE ADQUISICIÓN — TODO, con fuente (AD-31)
     alertas.yaml          # textos normativos de cumplimiento (AD-27)
     brokers.yaml
+  perfiles/               # PerfilCliente: activo_fijo, tarifa marginal (AD-33)
   catalogo/
-    vehiculos.yaml        # 10-15 vehículos curados a mano
+    vehiculos.yaml        # 10-15 vehículos; forma jurídica y elegibilidad (AD-32)
   data/cache/             # snapshots Parquet — gitignored, regenerable
   output/                 # memorandos generados — gitignored
   tests/
@@ -359,6 +418,8 @@ El costo escala con el número de memorandos, no con el de clientes ni con infra
 
 | Decisión | Por qué puede esperar |
 |---|---|
+| Cómo se presentan 9 celdas por vehículo (3 escenarios × 3 modos) sin perder al cliente | AD-24 fija que las nueve **existan** y que ninguna se omita en silencio; cómo se muestran es diseño de producto y le corresponde a Spec Kit. El criterio §10.3 se vuelve más exigente por este cambio |
+| Destino del efectivo del dividendo distribuido | AD-29 acomoda reinversión (lote nuevo), caja y repatriación sin cambio estructural. Sigue siendo pregunta abierta para la spec |
 | Proveedor concreto de datos de mercado y de TRM | AD-11 lo aísla tras `FuenteMercado`. Se elige en Fase 1 sin tocar el núcleo |
 | Presupuesto de latencia del criterio §10.5 (PDF en <2 min) | Depende del `effort` elegido y de si las 3 llamadas van seriales o en paralelo. Es afinamiento, no estructura: AD-9 y AD-23 no cambian según el resultado |
 | Línea concreta de cobertura de tests en AD-25 | El mecanismo está fijado; el umbral es una cifra que el operador ajusta |
