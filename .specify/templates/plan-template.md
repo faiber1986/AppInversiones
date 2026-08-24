@@ -40,7 +40,27 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Compuertas derivadas de `.specify/memory/constitution.md` v1.0.0. Cada una se responde
+SÍ / NO / N/A con justificación. Un NO en una compuerta NO NEGOCIABLE bloquea el plan.
+
+| # | Compuerta | Principio | ¿Pasa? |
+|---|---|---|---|
+| G1 | Ninguna cifra del output la genera el LLM; todas vienen del motor determinístico, y hay guard de código que lo verifica | I (NO NEG.) | |
+| G2 | Todo total se deriva del libro de asientos; ninguna cifra se calcula por vía paralela | II (NO NEG.) | |
+| G3 | Ningún parámetro tributario está en código; ninguno tiene valor por defecto numérico | III (NO NEG.) | |
+| G4 | Todo parámetro tributario declara procedencia, y el estado `supuesto_no_verificado` se propaga hasta el artefacto final | IV (NO NEG.) | |
+| G5 | Ninguna ruta puede emitir lenguaje recomendatorio; hay guard de código y verificación de sección de abogado del diablo | V (NO NEG.) | |
+| G6 | Ninguna dependencia de datos es de pago; el proveedor está tras `FuenteMercado` | VI | |
+| G7 | Todo cálculo nuevo en `motor/fiscal/` o `motor/friccion/` trae test con caso calculado a mano y aritmética documentada | VII (NO NEG.) | |
+| G8 | Toda ruta de salida pasa por el `Renderer` único que emite disclaimers y fecha de vigencia | VIII | |
+| G9 | Todo resultado se emite en la matriz 3 escenarios × 3 modos; las celdas no disponibles llevan su razón y no se sustituyen | IX | |
+| G10 | `motor/` no importa E/S, red ni UI; no lee reloj, entorno ni aleatoriedad; `tests/test_arquitectura.py` lo verifica | X | |
+| G11 | La solución es la más aburrida que satisface los principios; la complejidad añadida está justificada en la tabla de abajo | Gobernanza | |
+
+**Contrato técnico:** los 37 ADs de
+`_bmad-output/planning-artifacts/architecture/architecture-AppInversiones-2026-08-24/ARCHITECTURE-SPINE.md`
+implementan estos principios. Un diseño que contradiga un AD exige enmendar el AD primero,
+no eludirlo.
 
 ## Project Structure
 
