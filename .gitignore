@@ -1,0 +1,52 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Entornos virtuales ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Gestores / cachés ---
+.uv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Secretos ---
+# La API key de Anthropic y cualquier credencial NUNCA se versionan.
+.env
+.env.*
+!.env.example
+*.key
+secrets/
+
+# --- Artefactos generados por la herramienta ---
+# Los memorandos y graficos son output, no fuente. Se regeneran.
+output/
+reports/
+*.pdf
+!docs/**/*.pdf
+
+# --- Cache de datos de mercado ---
+# Datos descargados de proveedores gratuitos. Se re-descargan.
+data/cache/
+*.parquet
+
+# --- Editores / SO ---
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
