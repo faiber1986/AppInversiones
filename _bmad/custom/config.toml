@@ -5,3 +5,16 @@
 #
 # [agents.bmad-agent-pm]
 # description = "Prefers short, bulleted PRDs over narrative drafts."
+
+# ─────────────────────────────────────────────────────────────────
+# Override de idioma. El install no-interactivo (--yes) dejo el proyecto
+# en ingles. El brief exige que todo output —spine, memorando, PDF— sea
+# en espanol (seccion 8: "produce un documento narrativo profesional en
+# espanol"). Se fija aqui y no en _bmad/config.toml porque ese archivo
+# lo regenera el instalador en cada corrida.
+# ─────────────────────────────────────────────────────────────────
+
+[core]
+user_name = "Andrés"
+communication_language = "Spanish"
+document_output_language = "Spanish"
