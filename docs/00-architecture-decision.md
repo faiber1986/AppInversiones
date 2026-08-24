@@ -2,7 +2,7 @@
 
 > Entregable de la **Fase 0** del brief (§0.2). Responde las cinco preguntas que pediste decidir explícitamente, con sus trade-offs.
 >
-> El contrato técnico ejecutable vive en `_bmad-output/planning-artifacts/architecture/architecture-AppInversiones-2026-08-24/ARCHITECTURE-SPINE.md` (37 decisiones arquitectónicas). Este documento es el porqué; el spine es el qué.
+> El contrato técnico ejecutable vive en `_bmad-output/planning-artifacts/architecture/architecture-AppInversiones-2026-08-24/ARCHITECTURE-SPINE.md` (51 decisiones arquitectónicas). Este documento es el porqué; el spine es el qué.
 >
 > Fecha: 2026-08-24 · Producido con BMAD-METHOD v6.11.0, workflow `bmad-architecture` en modo headless, con Reviewer Gate completo.
 
@@ -299,3 +299,37 @@ El criterio de aceptación §10.3 —que un cliente no técnico entienda el desg
 ## Qué sigue abierto
 
 El **bloqueante 1 sigue sin resolver**: qué pasa con el efectivo del dividendo distribuido. El cambio 1 dice que toda reinversión crea un lote nuevo y que la fragmentación es un costo del vehículo distributivo, lo que sugiere reinversión — pero no lo afirma, y no lo doy por supuesto. Va a `/speckit.clarify`.
+
+---
+
+# Addendum 2 — Segunda pasada del Reviewer Gate sobre la contabilidad por lotes
+
+El revisor adversarial corrió contra los `AD-29`–`AD-37` y dio **FAIL**: 7 pares críticos y 6 altos. Acepté el veredicto — **dos de los ADs que yo había agregado eran contradicciones literales, no huecos**. El spine pasó de 37 a **51 ADs**: 6 enmendados en sitio, 14 nuevos. Ninguno renumerado.
+
+## Los tres hallazgos que valían el ejercicio
+
+**1. La clave del libro quedó incompleta.** Al introducir el modo de reajuste y el mundo contrafactual creé dos dimensiones ortogonales, pero dejé la clave del libro en `(corrida, vehículo, escenario)`. Los tres modos pasaban el guard y escribían **en el mismo libro**, y `AD-8` obliga a derivar los totales sumándolo: el costo fiscal salía sumando los tres ajustes. `ReajusteDoble` no lo atrapaba, porque vigila el cálculo y no la suma. Cerrado con `AD-41`: clave de cinco campos, **18 libros por vehículo**.
+
+**2. Prohibí la forma correcta de liquidar.** `AD-29` decía "impuesto lote por lote, **nunca** sobre el agregado". Pero una tabla progresiva y una exención anual se aplican precisamente sobre la base agregada de la cédula en el año. Con mi regla, tres lotes pequeños habrían pagado una tarifa marginal muy inferior a la que corresponde a su suma. Cerrado con `AD-44`: **dos fases** — clasificación por lote, tarificación por `(cédula, año)`.
+
+**3. El reloj del lote no se podía leer.** Le puse `fecha_adquisicion` día a día a un motor que avanza por años. Un lote de reinversión fechado en enero y otro en diciembre del mismo año habrían cruzado el umbral de tenencia en sentidos opuestos, saltando entre la tarifa de ganancia ocasional y la marginal sobre la misma operación. Y `AD-22` **no tenía paso de venta**, así que vender antes o después de la custodia movía el reloj doce meses. Cerrado con `AD-42` y un paso terminal de realización.
+
+## Otros cierres
+
+| AD | Cierra |
+|---|---|
+| `AD-38` | El lote no tenía identidad: con `frozen=True` la igualdad era por valor, y el contrafactual —que iguala la TRM de todos los lotes— hacía que dos lotes distintos se volvieran idénticos |
+| `AD-39` | FIFO tenía dos dueños, y con la tenencia medida en años los empates son el caso normal |
+| `AD-40` | Venta parcial de un lote inmutable: nadie decía qué representa el remanente |
+| `AD-43` | El art. 70 no dice si su porcentaje es anual o acumulado, y el art. 73 tenía dos campos candidatos para "año de adquisición" |
+| `AD-45` | `cantidad` no tenía tipo — `AD-4` cubre dinero, no participaciones |
+| `AD-46` | El valor patrimonial anual es un **saldo** entrando a un libro de **flujos**: sumarlo por año inflaba el retorno en un múltiplo del capital |
+| `AD-47` | "Porcentaje de la ganancia" admitía varios denominadores razonables con resultados de signo contrario |
+| `AD-48` | "No disponible" no tenía tipo: los perfiles no-activo-fijo se quedaban **sin memorando** |
+| `AD-49` | La procedencia no declaraba cómo se agrega: un total podía quedar marcado como verificado con una línea que no lo está |
+| `AD-50` | `elegibilidad_art_73` evadía el invariante de procedencia |
+| `AD-51` | El spread cambiario según el modo de destino del dividendo (aporte del operador) |
+
+## Lo que deliberadamente NO decidí
+
+`AD-43` deja la **ventana del art. 70** (¿anual o acumulada sobre los años de tenencia?) como parámetro declarado en configuración, no como lectura normativa mía. Mueve el costo fiscal en decenas de millones sobre un caso realista. Es exactamente el tipo de interpretación que el brief §8 me prohíbe hacer por mi cuenta: **va al tributarista**, y mientras no esté declarada el sistema falla.
